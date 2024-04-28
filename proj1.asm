@@ -20,10 +20,12 @@ inputBuffer: .space 1024
 
 enteredS: .asciiz "\nPARSING STARTED\n"
 convertingS: .asciiz "\nConversing STARTED\n"
-
+printRecords:.asciiz "\nNumber of records:"
+printSearchEnded:.asciiz "\nSearch Ended!\n"
+printIdFound:.asciiz "\nID found:"
 .align 2
 patient_info: .space 120       # Array to store patients information 
-
+record_counter: .space 0
 
 temp_buffer:
     .space 256           # Allocate space for temporary buffer (adjust size as needed)
@@ -42,6 +44,8 @@ name_prompt: .asciiz "\nEnter test name: "
 date_prompt: .asciiz "\nEnter test Date: "
 result_prompt: .asciiz "\nEnter test Result: "
 success_prompt: .asciiz "\nTest added successfully!\n"
+
+ID_search:.asciiz "\nEnter patient ID: "
 
 line_buffer: .space 50
 
@@ -142,17 +146,148 @@ ADD: #add new test
 	la $a0, temp1
 	li $v0, 4 # Print String
 	syscall
+
+# Prompt the user for test information
+
+    # Prompt for patient ID
+    la $a0, ID_prompt
+    li $v0, 4   # Print String
+    syscall
+    li $v0, 5   # Read Integer
+    syscall
+    move $t1, $v0  # Store patient ID
+
+    # Prompt for test name
+    la $a0, name_prompt
+    li $v0, 4   # Print String
+    syscall
+    la $a0, testName
+    li $a1, 4  # Max length of test name
+    li $v0, 8   # Read String
+    syscall
+    
+    # Prompt for test date
+    la $a0, date_prompt
+    li $v0, 4   # Print String
+    syscall
+    la $a0, testDate
+    li $a1, 8  # Max length of test date
+    li $v0, 8   # Read String
+    syscall
+
+    # Prompt for test result
+    la $a0, result_prompt
+    li $v0, 4   # Print String
+    syscall
+    la $a0, testRes
+    li $a1, 8  # Max length of test result
+    li $v0, 8   # Read String
+    syscall
+    
+    lw $t8, record_counter
+	# Loop through stored records to find the matching ID
+	la $t4, patient_info # Load base address of patient information
+	li $t5, 0 # Initialize counter for number of records
+	
+getLast:
+	lw $t6, ($t4) # Load current ID from patient_info
+	addi $t4, $t4, 16   # Move to next record
+	addi $t5, $t5, 1     # Increment counter
+	blt $t5, $t8, getLast # If not reached total records, continue searching
+	
+addPatient:
+	move $a0,$t1
+	sw $a0, 0($t4)                    # Store patient ID
+	
+	la $a0, testName
+	sw $a0, 4($t4)
+	
+	la $a0, testDate
+	sw $a0, 8($t4)
+	
+	la $a0, testRes
+	sw $a0, 12($t4)
+	
+	addi $t8, $t8, 1
+	sw $t8, record_counter      
+	 
+    # Display confirmation message
+    la $a0, success_prompt
+    li $v0, 4   # Print String
+    syscall
+
 	j MENU
 
-	 
-	
-	 
-	
-
 UPDATE:
-la $a0, temp1
-li $v0, 4 # Print String
-syscall
+
+search:
+	la $a0, search
+	li $v0, 4   # Print String
+	syscall
+	li $v0, 5   # Read Integer
+	syscall
+	move $s1, $v0   # Store the entered ID in $s1
+
+	# Load the record counter
+	lw $t8, record_counter
+
+	# Loop through stored records to find the matching ID
+	la $t4, patient_info # Load base address of patient information
+	
+	li $t5, 0 # Initialize counter for number of records
+
+updateLoop:
+	lw $t6, ($t4) # Load current ID from patient_info
+	beq $t6, $s1, foundId # If ID matches, jump to found_id
+	addi $t4, $t4, 16   # Move to next record
+	addi $t5, $t5, 1     # Increment counter
+	blt $t5, $t8, updateLoop # If not reached total records, continue searching
+	j MENU             # Return to menu
+
+foundId:
+	# Print "ID found" message
+	la $a0, printIdFound
+	li $v0, 4           # Print String
+	syscall
+
+	# Print the patient ID	
+	lw $a0, ($t4)      # Load the patient ID
+	li $v0, 1          # Print Integer
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 4($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 8($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 12($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+    
+	addi $t4, $t4, 16   
+	j search_loop
+
 j MENU
 
 DELETE:
@@ -168,15 +303,87 @@ syscall
 j MENU
 
 SEARCH_ID:
-la $a0, ID_prompt
-li $v0, 4 
-syscall
-j EXIT
+
+	la $a0, ID_search
+	li $v0, 4   # Print String
+	syscall
+	li $v0, 5   # Read Integer
+	syscall
+	move $s1, $v0   # Store the entered ID in $s1
+
+	# Load the record counter
+	lw $t8, record_counter
+
+	# Loop through stored records to find the matching ID
+	la $t4, patient_info # Load base address of patient information
+	
+	li $t5, 0 # Initialize counter for number of records
+
+search_loop:
+	lw $t6, ($t4) # Load current ID from patient_info
+	beq $t6, $s1, found_id # If ID matches, jump to found_id
+	addi $t4, $t4, 16   # Move to next record
+	addi $t5, $t5, 1     # Increment counter
+	blt $t5, $t8, search_loop # If not reached total records, continue searching
+
+    # If reached total records and ID not found, print message
+	la $a0, printSearchEnded
+	li $v0, 4          # Print String
+	syscall
+	j MENU             # Return to menu
+
+found_id:
+	# Print "ID found" message
+	la $a0, printIdFound
+	li $v0, 4           # Print String
+	syscall
+
+	# Print the patient ID	
+	lw $a0, ($t4)      # Load the patient ID
+	li $v0, 1          # Print Integer
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 4($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 8($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+	
+	la $a0, split
+	li $v0, 4 # Print String
+	syscall
+	
+	# Load name address into $a0
+	lw $a0, 12($t4)                   # Load the address of testName from memory into $a0
+	# Load the string from the address
+	li $v0, 4                        # Print string syscall
+	syscall
+    
+	addi $t4, $t4, 16   
+	j search_loop
 
 SEARCH_T:
 la $a0, temp1
 li $v0, 4 # Print String
 syscall
+# Read the patient ID entered by the user
+li $v0, 5 # Read Integer
+syscall
+move $s1, $v0 # Store the entered ID in $s1
 j MENU
 
 #############################
@@ -185,6 +392,7 @@ READ_FILE:
 	la $t0, inputBuffer      # Load address of buffer into $t0
 	li $t1, 0           # Initialize register for address
 	la $t4, patient_info        # Load base address of patient information
+	lw $t8, record_counter
 	j parse_ID
 	
 parse_ID:
@@ -247,12 +455,12 @@ found_name_end:
 	syscall
 	
 	# Allocate memory for the name
-    li $v0, 9            # syscall 9 - sbrk (allocate memory)
-    li $a0, 8            # Allocate 8 bytes for the name (adjust size as needed)
-    syscall              # Allocate memory, address returned in $v0
+    	li $v0, 9            # syscall 9 - sbrk (allocate memory)
+    	li $a0, 8            # Allocate 8 bytes for the name (adjust size as needed)
+    	syscall              # Allocate memory, address returned in $v0
     
-    move $t9, $v0
-    move $t6, $v0
+    	move $t9, $v0
+    	move $t6, $v0
 	
 	j parse_Date
     
@@ -316,16 +524,26 @@ found_Res_end:
 	# Load the string from the address
 	li $v0, 4                        # Print string syscall
 	syscall
-	
+	addi $t8, $t8, 1
 	beq $t2, $zero, close_file # If end of file
 	beq $t2, '\n',newLine  # If new Line
 	
 close_file:
+ 	sw $t8, record_counter
 	# Close the file
 	li $v0, 16       # syscall for close
 	move $a0, $s0    # file descriptor
 	syscall          # close the file
 	
+	
+	 # Print the number of records
+    	la $a0, printRecords
+    	li $v0, 4       # Print String
+    	syscall
+
+    	lw $a0, record_counter
+    	li $v0, 1       # Print Integer
+    	syscall
 	j MENU
 	
 	
